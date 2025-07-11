@@ -45,6 +45,9 @@ export default function ChattingWindow() {
             }))
             setMessages(formattedMessages)
           }
+        } else {
+          // Channel doesn't exist, so clear messages
+          setMessages([])
         }
       }
     } catch (error) {
@@ -107,7 +110,11 @@ export default function ChattingWindow() {
         <div className="p-4 space-y-1">
           <Button
             variant="ghost"
-            className="w-full justify-start px-3 py-2 h-auto text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            className={`w-full justify-start px-3 py-2 h-auto rounded-lg ${
+              currentChannel === "general"
+                ? "bg-zinc-800 text-gray-200 hover:bg-zinc-800 hover:text-gray-200"
+                : "text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            }`}
             onClick={() => setCurrentChannel("general")}
           >
             <MessageSquare className="w-4 h-4 mr-3" />
@@ -116,7 +123,11 @@ export default function ChattingWindow() {
 
           <Button
             variant="ghost"
-            className="w-full justify-start px-3 py-2 h-auto bg-zinc-800 text-gray-200 rounded-lg"
+            className={`w-full justify-start px-3 py-2 h-auto rounded-lg ${
+              currentChannel === "dev-discussion"
+                ? "bg-zinc-800 text-gray-200 hover:bg-zinc-800 hover:text-gray-200"
+                : "text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            }`}
             onClick={() => setCurrentChannel("dev-discussion")}
           >
             <MessageSquare className="w-4 h-4 mr-3" />
@@ -125,7 +136,11 @@ export default function ChattingWindow() {
 
           <Button
             variant="ghost"
-            className="w-full justify-start px-3 py-2 h-auto text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            className={`w-full justify-start px-3 py-2 h-auto rounded-lg ${
+              currentChannel === "off-topic"
+                ? "bg-zinc-800 text-gray-200 hover:bg-zinc-800 hover:text-gray-200"
+                : "text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            }`}
             onClick={() => setCurrentChannel("off-topic")}
           >
             <MessageSquare className="w-4 h-4 mr-3" />
@@ -134,7 +149,11 @@ export default function ChattingWindow() {
 
           <Button
             variant="ghost"
-            className="w-full justify-start px-3 py-2 h-auto text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            className={`w-full justify-start px-3 py-2 h-auto rounded-lg ${
+              currentChannel === "github"
+                ? "bg-zinc-800 text-gray-200 hover:bg-zinc-800 hover:text-gray-200"
+                : "text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            }`}
             onClick={() => setCurrentChannel("github")}
           >
             <MessageSquare className="w-4 h-4 mr-3" />
