@@ -4,21 +4,55 @@ import { Button } from "./ui/button"
 import { Input } from './ui/input'
 import { MessageSquare, Volume2, VolumeX, Mic, MicOff, Headphones, PhoneOff, Monitor, Plus } from "lucide-react"
 import { ScrollArea } from "./ui/scroll-area"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface Message {
-  id: string
+  id: string | number
   username: string
   content: string
   color: string
   avatar: string
+  createdAt?: string
 }
 
 export default function ChattingWindow() {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
+  const [currentChannel, setCurrentChannel] = useState("dev-discussion")
 
-  const handleSendMessage = () => {
+  // Load messages from database on component mount
+  useEffect(() => {
+    loadMessages()
+  }, [currentChannel])
+
+  const loadMessages = async () => {
+    try {
+      // First, get the channel ID by name
+      const channelResponse = await fetch(`/api/chat/channels?name=${currentChannel}`)
+      if (channelResponse.ok) {
+        const channel = await channelResponse.json()
+        if (channel) {
+          const response = await fetch(`/api/chat?channelId=${channel.id}`)
+          if (response.ok) {
+            const dbMessages = await response.json()
+            const formattedMessages: Message[] = dbMessages.map((msg: any) => ({
+              id: msg.id,
+              username: msg.user.username,
+              content: msg.content,
+              color: msg.user.color,
+              avatar: msg.user.avatar,
+              createdAt: msg.createdAt
+            }))
+            setMessages(formattedMessages)
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error loading messages:", error)
+    }
+  }
+
+  const handleSendMessage = async () => {
     if (inputValue.trim()) {
       const newMessage: Message = {
         id: Date.now().toString(),
@@ -27,8 +61,34 @@ export default function ChattingWindow() {
         color: "text-blue-400",
         avatar: "YO"
       }
+
+      // Optimistically add message to UI
       setMessages(prev => [...prev, newMessage])
       setInputValue("")
+
+      try {
+        // Save to database
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content: newMessage.content,
+            username: newMessage.username,
+            channelName: currentChannel,
+            avatar: newMessage.avatar,
+            color: newMessage.color,
+          }),
+        })
+
+        if (!response.ok) {
+          console.error("Failed to save message")
+          // Optionally remove the message from UI if save failed
+        }
+      } catch (error) {
+        console.error("Error saving message:", error)
+      }
     }
   }
 
@@ -48,6 +108,7 @@ export default function ChattingWindow() {
           <Button
             variant="ghost"
             className="w-full justify-start px-3 py-2 h-auto text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            onClick={() => setCurrentChannel("general")}
           >
             <MessageSquare className="w-4 h-4 mr-3" />
             general
@@ -56,6 +117,7 @@ export default function ChattingWindow() {
           <Button
             variant="ghost"
             className="w-full justify-start px-3 py-2 h-auto bg-zinc-800 text-gray-200 rounded-lg"
+            onClick={() => setCurrentChannel("dev-discussion")}
           >
             <MessageSquare className="w-4 h-4 mr-3" />
             dev-discussion
@@ -64,6 +126,7 @@ export default function ChattingWindow() {
           <Button
             variant="ghost"
             className="w-full justify-start px-3 py-2 h-auto text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            onClick={() => setCurrentChannel("off-topic")}
           >
             <MessageSquare className="w-4 h-4 mr-3" />
             off-topic
@@ -72,6 +135,7 @@ export default function ChattingWindow() {
           <Button
             variant="ghost"
             className="w-full justify-start px-3 py-2 h-auto text-gray-400 hover:bg-zinc-800 hover:text-gray-200"
+            onClick={() => setCurrentChannel("github")}
           >
             <MessageSquare className="w-4 h-4 mr-3" />
             github
@@ -160,7 +224,7 @@ export default function ChattingWindow() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Write a message to 'dev-discussion'"
+              placeholder={`Write a message to '${currentChannel}'`}
               className="w-full bg-zinc-800 border-none text-gray-300 placeholder-gray-500 rounded-lg px-4 py-3 focus-visible:ring-1 focus-visible:ring-zinc-600"
             />
           </div>
