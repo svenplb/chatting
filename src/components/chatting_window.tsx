@@ -4,7 +4,8 @@ import { Button } from "./ui/button"
 import { Input } from './ui/input'
 import { MessageSquare, Volume2, VolumeX, Mic, MicOff, Headphones, PhoneOff, Monitor, Plus } from "lucide-react"
 import { ScrollArea } from "./ui/scroll-area"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import { io, Socket } from "socket.io-client"
 
 interface Message {
   id: string | number
@@ -15,15 +16,65 @@ interface Message {
   createdAt?: string
 }
 
+const USER_COLORS = [
+  "text-blue-400",
+  "text-green-400",
+  "text-pink-400",
+  "text-yellow-400",
+  "text-purple-400",
+  "text-red-400",
+  "text-orange-400",
+  "text-cyan-400",
+];
+
+function getColorForUsername(username: string) {
+  let hash = 0;
+  for (let i = 0; i < username.length; i++) {
+    hash = username.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return USER_COLORS[Math.abs(hash) % USER_COLORS.length];
+}
+
 export default function ChattingWindow() {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [currentChannel, setCurrentChannel] = useState("dev-discussion")
+  const socketRef = useRef<Socket | null>(null)
+  const [username, setUsername] = useState("You")
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   // Load messages from database on component mount
   useEffect(() => {
     loadMessages()
   }, [currentChannel])
+
+  // Connect to Socket.IO server
+  useEffect(() => {
+    const socket = io("ws://localhost:4000")
+    socketRef.current = socket
+
+    socket.on("connect", () => {
+      console.log("Socket connected!", socket.id);
+    });
+
+    socket.on("chat-message", (msg: any) => {
+      console.log("Received message:", msg);
+      if (msg.channelName === currentChannel) {
+        setMessages((prev) => [...prev, msg])
+      }
+    })
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [currentChannel])
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [messages, currentChannel])
 
   const loadMessages = async () => {
     try {
@@ -58,16 +109,24 @@ export default function ChattingWindow() {
   const handleSendMessage = async () => {
     if (inputValue.trim()) {
       const newMessage: Message = {
-        id: Date.now().toString(),
-        username: "You",
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+        username: username,
         content: inputValue.trim(),
-        color: "text-blue-400",
-        avatar: "YO"
+        color: getColorForUsername(username),
+        avatar: "YO",
+        createdAt: new Date().toISOString(),
       }
 
-      // Optimistically add message to UI
-      setMessages(prev => [...prev, newMessage])
       setInputValue("")
+
+      // Emit to Socket.IO server
+      if (socketRef.current) {
+        console.log("Emitting message:", { ...newMessage, channelName: currentChannel });
+        socketRef.current.emit("chat-message", {
+          ...newMessage,
+          channelName: currentChannel,
+        })
+      }
 
       try {
         // Save to database
@@ -87,7 +146,7 @@ export default function ChattingWindow() {
 
         if (!response.ok) {
           console.error("Failed to save message")
-          // Optionally remove the message from UI if save failed
+          // Optionally show an error to the user
         }
       } catch (error) {
         console.error("Error saving message:", error)
@@ -104,8 +163,8 @@ export default function ChattingWindow() {
 
   return (
     <div className="flex h-screen bg-black text-gray-300">
-      {/* Left Sidebar - Channels */}
-      <div className="w-64 bg-zinc-900 flex flex-col">
+      {/* Sidebar */}
+      <div className="w-64 bg-zinc-900 flex flex-col h-screen flex-shrink-0">
         {/* Text Channels */}
         <div className="p-4 space-y-1">
           <Button
@@ -217,9 +276,20 @@ export default function ChattingWindow() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-screen">
+        {/* Username Input */}
+        <div className="p-4 flex items-center gap-2 flex-shrink-0">
+          <span className={`w-4 h-4 rounded-full inline-block bg-current ${getColorForUsername(username)}`}></span>
+          <input
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            placeholder="Enter your username"
+            className="mb-2 px-2 py-1 rounded bg-zinc-800 text-gray-200"
+          />
+          <span className={`font-bold ${getColorForUsername(username)}`}>{username}</span>
+        </div>
         {/* Chat Messages */}
-        <ScrollArea className="flex-1 p-4">
+        <div className="flex-1 overflow-y-auto px-4 pb-2">
           <div className="space-y-3">
             {messages.map((message) => (
               <div key={message.id} className="flex items-start space-x-3">
@@ -228,16 +298,16 @@ export default function ChattingWindow() {
                   <AvatarFallback className="bg-zinc-700 text-gray-300">{message.avatar}</AvatarFallback>
                 </Avatar>
                 <div className="bg-zinc-800 px-4 py-2 rounded-2xl max-w-md">
-                  <div className={`text-sm font-medium ${message.color} mb-1`}>{message.username}</div>
+                  <div className={`text-sm font-medium ${getColorForUsername(message.username)} mb-1`}>{message.username}</div>
                   <p className="text-gray-300 text-sm">{message.content}</p>
                 </div>
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
-        </ScrollArea>
-
+        </div>
         {/* Message Input */}
-        <div className="p-4">
+        <div className="p-4 flex-shrink-0">
           <div className="relative">
             <Input
               value={inputValue}
